@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INASEP · Imagen a PDF</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #0f1a0f;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+      color: #e8ede8;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+
+    header img {
+      width: 80px;
+      filter: drop-shadow(0 4px 16px rgba(0,0,0,.6));
+    }
+
+    header h1 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #c9b97a;
+    }
+
+    header p {
+      font-size: .82rem;
+      color: #7a9a7a;
+      letter-spacing: .04em;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #162016;
+      border: 1px solid #2a3d2a;
+      border-radius: 14px;
+      padding: 28px 24px;
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* ── Drop Zone ── */
+    .drop-zone {
+      border: 2px dashed #3a5a3a;
+      border-radius: 10px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.over {
+      border-color: #c9b97a;
+      background: rgba(201,185,122,.05);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      font-size: 2.4rem;
+      margin-bottom: 10px;
+    }
+
+    .drop-zone .label {
+      font-size: .92rem;
+      color: #8aaa8a;
+    }
+
+    .drop-zone .hint {
+      font-size: .75rem;
+      color: #4a6a4a;
+      margin-top: 6px;
+    }
+
+    /* ── Preview ── */
+    #preview-wrap {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #preview-wrap.visible { display: flex; }
+
+    #preview-wrap .label-sm {
+      font-size: .75rem;
+      color: #7a9a7a;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    #preview-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2a3d2a;
+      max-height: 300px;
+      object-fit: contain;
+      background: #0f1a0f;
+    }
+
+    #file-name {
+      font-size: .8rem;
+      color: #5a7a5a;
+      text-align: center;
+    }
+
+    /* ── Nombre campo ── */
+    .field label {
+      display: block;
+      font-size: .78rem;
+      color: #7a9a7a;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 6px;
+    }
+
+    .field input {
+      width: 100%;
+      background: #0f1a0f;
+      border: 1px solid #2a3d2a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #e8ede8;
+      font-size: .92rem;
+      outline: none;
+      transition: border-color .2s;
+    }
+
+    .field input:focus { border-color: #c9b97a; }
+    .field input::placeholder { color: #3a5a3a; }
+
+    /* ── Botón ── */
+    #btn-pdf {
+      display: none;
+      width: 100%;
+      padding: 13px;
+      background: #4a7a3a;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+
+    #btn-pdf.visible { display: block; }
+    #btn-pdf:hover { background: #5a8a4a; }
+    #btn-pdf:active { transform: scale(.98); }
+
+    /* ── Mensaje éxito ── */
+    #msg-ok {
+      display: none;
+      text-align: center;
+      font-size: .88rem;
+      color: #8aaa6a;
+      padding: 10px;
+      border: 1px solid #3a5a2a;
+      border-radius: 8px;
+      background: rgba(74,122,58,.12);
+    }
+
+    #msg-ok.visible { display: block; }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 36px;
+      font-size: .72rem;
+      color: #2a4a2a;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <!-- Logo INASEP en base64 – reemplaza el src con la URL de tu logo en GitHub -->
+  <img id="logo-img" src="logo_inasep.png" alt="INASEP" />
+  <h1>INASEP</h1>
+  <p>Gestión de Documentos · Portal Alumno</p>
+</header>
+
+<div class="card">
+
+  <!-- Drop Zone -->
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept="image/*" capture="environment" />
+    <div class="drop-icon">📎</div>
+    <div class="label">Adjunta tu pantallazo aquí</div>
+    <div class="hint">PNG, JPG · desde galería o cámara</div>
+  </div>
+
+  <!-- Preview -->
+  <div id="preview-wrap">
+    <span class="label-sm">Vista previa</span>
+    <img id="preview-img" alt="Vista previa" />
+    <span id="file-name"></span>
+  </div>
+
+  <!-- Campo nombre alumno -->
+  <div class="field">
+    <label for="alumno-name">Nombre del alumno (aparecerá en el PDF)</label>
+    <input type="text" id="alumno-name" placeholder="Ej: Juan Pérez Soto" />
+  </div>
+
+  <!-- Botón generar -->
+  <button id="btn-pdf">⬇ Descargar PDF</button>
+
+  <!-- Mensaje ok -->
+  <div id="msg-ok">✅ PDF generado correctamente. Revisa tus Descargas.</div>
+
+</div>
+
+<footer>Instituto Nacional de Seguridad Privada SpA · INASEP · Quilpué, Valparaíso</footer>
+
+<script>
+  const { jsPDF } = window.jspdf;
+
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const previewImg = document.getElementById('preview-img');
+  const previewWrap= document.getElementById('preview-wrap');
+  const fileNameEl = document.getElementById('file-name');
+  const btnPdf     = document.getElementById('btn-pdf');
+  const msgOk      = document.getElementById('msg-ok');
+  const alumnoName = document.getElementById('alumno-name');
+  const logoImg    = document.getElementById('logo-img');
+
+  let imageDataUrl = null;
+
+  // Drag & drop visual
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('over');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+  });
+
+  function loadFile(file) {
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor sube una imagen (PNG o JPG).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      imageDataUrl = e.target.result;
+      previewImg.src = imageDataUrl;
+      fileNameEl.textContent = file.name;
+      previewWrap.classList.add('visible');
+      btnPdf.classList.add('visible');
+      msgOk.classList.remove('visible');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  btnPdf.addEventListener('click', generatePDF);
+
+  async function generatePDF() {
+    if (!imageDataUrl) return;
+
+    btnPdf.textContent = '⏳ Generando PDF…';
+    btnPdf.disabled = true;
+
+    // Obtener logo como base64
+    let logoB64 = null;
+    try {
+      logoB64 = await imgToBase64(logoImg.src);
+    } catch(_) {}
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210, H = 297;
+    const MARGIN = 16;
+
+    // Fondo blanco
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, W, H, 'F');
+
+    // ── Header verde ──
+    doc.setFillColor(42, 74, 42);
+    doc.rect(0, 0, W, 38, 'F');
+
+    // Logo en el header
+    if (logoB64) {
+      doc.addImage(logoB64, 'PNG', MARGIN, 5, 22, 22);
+    }
+
+    // Texto header
+    doc.setTextColor(201, 185, 122);
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text('INASEP', MARGIN + 26, 17);
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 210, 180);
+    doc.text('Instituto Nacional de Seguridad Privada SpA', MARGIN + 26, 23);
+    doc.text('Aníbal Pinto 875, Quilpué · contacto@inasep.cl · +56 9 4406 1866', MARGIN + 26, 29);
+
+    // Título del documento
+    doc.setTextColor(40, 40, 40);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RESPALDO DE CORREO ELECTRÓNICO', MARGIN, 52);
+
+    // Línea divisoria
+    doc.setDrawColor(42, 74, 42);
+    doc.setLineWidth(0.6);
+    doc.line(MARGIN, 55, W - MARGIN, 55);
+
+    // Datos del alumno y fecha
+    const nombre = alumnoName.value.trim() || 'No indicado';
+    const ahora  = new Date();
+    const fecha  = ahora.toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' });
+    const hora   = ahora.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Alumno:  ${nombre}`, MARGIN, 63);
+    doc.text(`Fecha:   ${fecha}  ${hora}`, MARGIN, 70);
+
+    // ── Imagen adjunta ──
+    const imgY    = 78;
+    const imgMaxW = W - MARGIN * 2;
+    const imgMaxH = H - imgY - 22;
+
+    // Calcular dimensiones proporcionales
+    const tmp = new Image();
+    tmp.src = imageDataUrl;
+    await new Promise(r => { tmp.onload = r; });
+
+    const ratio   = tmp.naturalWidth / tmp.naturalHeight;
+    let iW = imgMaxW;
+    let iH = iW / ratio;
+    if (iH > imgMaxH) { iH = imgMaxH; iW = iH * ratio; }
+
+    const iX = MARGIN + (imgMaxW - iW) / 2;
+
+    // Marco sutil
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+    doc.rect(iX - 1, imgY - 1, iW + 2, iH + 2);
+
+    const ext = imageDataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+    doc.addImage(imageDataUrl, ext, iX, imgY, iW, iH);
+
+    // ── Pie de página ──
+    doc.setFillColor(42, 74, 42);
+    doc.rect(0, H - 12, W, 12, 'F');
+    doc.setTextColor(180, 210, 180);
+    doc.setFontSize(7);
+    doc.text('Documento generado automáticamente por el Portal INASEP · www.inasep.cl', W / 2, H - 5, { align: 'center' });
+
+    // Nombre de archivo
+    const safeName = nombre.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_áéíóúñÁÉÍÓÚÑ]/g, '');
+    doc.save(`INASEP_Respaldo_${safeName || 'Alumno'}.pdf`);
+
+    btnPdf.textContent = '⬇ Descargar PDF';
+    btnPdf.disabled = false;
+    msgOk.classList.add('visible');
+  }
+
+  function imgToBase64(src) {
+    return new Promise((resolve, reject) => {
+      if (src.startsWith('data:')) { resolve(src); return; }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        resolve(c.toDataURL('image/png'));
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+</script>
+</body>
+</html>
